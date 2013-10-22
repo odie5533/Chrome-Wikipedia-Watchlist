@@ -1,0 +1,26 @@
+Copyright
+=========
+Wikipedia Watchlist
+Copyright (C) 2010-2013 David Bern
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+The icon file consisting of a puzzle piece with the letter 'W' on it is
+copyright to Kimbar and is released under the terms of the Creative Commons
+Attribution-Share Alike 3.0 Unported license, available at
+<http://creativecommons.org/licenses/by-sa/3.0/deed.en>.
+For more information on the file, go to
+<http://commons.wikimedia.org/wiki/File:Wiki_puzzle.svg>
