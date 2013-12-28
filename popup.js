@@ -8,7 +8,9 @@ addEventListener("unload", function (event) {
 }, true);
 
 // Set the watchlist url to the computed one, based on https and lang settings
-$('#watchlist').prop('href', watchlistLink);
+$(document).ready(function(){
+	$('#watchlist').prop('href', watchlistLink);
+})
 
 //localStorage.removeItem('unread');localStorage.removeItem('last_date');
 checkNewItems(displayUnread);
