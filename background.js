@@ -2,12 +2,17 @@
 Copyright (C) David Bern
 See COPYRIGHT.txt for details
 */
+try {
+  importScripts("jquery-2.0.3.min.js", "wikiwatchlist.js");
+} catch (e) {
+  console.error(e);
+}
+
 function scheduleRequest() {
     var period = parseInt(localStorage['checkDelay']);
     console.log("Scheduling request for " + period + " minutes");
     console.log("Creating alarm 'checkNewItems'");
     chrome.alarms.create('checkNewItems', {periodInMinutes: period});
-    chrome.alarms.onAlarm.addListener(onAlarm);
 }
 
 function onAlarm(alarm) {
@@ -21,9 +26,11 @@ function unloadEvent() {
     console.log("Unload event");
     if (localStorage['autoRead'] == 'true') {
         localStorage['unread'] = "";
-        chrome.browserAction.setBadgeText({text: ""});
+        chrome.action.setBadgeText({text: ""});
     }
 }
+
+chrome.alarms.onAlarm.addListener(onAlarm);
 
 scheduleRequest();
 checkNewItems();
