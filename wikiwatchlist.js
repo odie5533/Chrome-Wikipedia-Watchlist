@@ -2,74 +2,139 @@
 Copyright (C) David Bern
 See COPYRIGHT.txt for details
 */
-if (!localStorage['lang'])
-    localStorage['lang'] = 'en';
-if (!localStorage['https'])
-    localStorage['https'] = true;
-if (!localStorage['autoRead'])
-    localStorage['autoRead'] = false;
-if (!localStorage['checkDelay'] || !(localStorage['checkDelay'] > 0))
-    localStorage['checkDelay'] = 5;
 
-var httpPrefix = ((localStorage['https'] == 'true') ? 'https' : 'http') + '://';
-var wikipediaUrl = httpPrefix + localStorage['lang'] + ".wikipedia.org";
-var watchlistUrl = wikipediaUrl + "/w/api.php?action=feedwatchlist";
-var watchlistLink = wikipediaUrl + "/wiki/Special:Watchlist";
+// Storage helper functions for Manifest V3
+async function getStorageData(keys) {
+    return new Promise((resolve) => {
+        chrome.storage.sync.get(keys, resolve);
+    });
+}
 
-if (!localStorage['last_date'])
-    localStorage['last_date'] = '0';
+async function setStorageData(data) {
+    return new Promise((resolve) => {
+        chrome.storage.sync.set(data, resolve);
+    });
+}
+
+async function initializeSettings() {
+    const settings = await getStorageData(['lang', 'https', 'autoRead', 'checkDelay']);
+    
+    const defaults = {
+        lang: settings.lang || 'en',
+        https: settings.https !== undefined ? settings.https : 'true',
+        autoRead: settings.autoRead || 'false',
+        checkDelay: settings.checkDelay > 0 ? settings.checkDelay : '5'
+    };
+    
+    await setStorageData(defaults);
+    return defaults;
+}
+
+async function getWatchlistUrls() {
+    const settings = await getStorageData(['lang', 'https']);
+    const httpPrefix = ((settings.https === 'true') ? 'https' : 'http') + '://';
+    const wikipediaUrl = httpPrefix + settings.lang + ".wikipedia.org";
+    const watchlistUrl = wikipediaUrl + "/w/api.php?action=feedwatchlist";
+    const watchlistLink = wikipediaUrl + "/wiki/Special:Watchlist";
+    
+    return { watchlistUrl, watchlistLink, wikipediaUrl };
+}
 
 // Checks user's watchlist for new items
 // Can take a callback function which executes with the return data
-function checkNewItems(callback) {
+async function checkNewItems(callback) {
     console.log("Checking for new items...");
-    chrome.browserAction.setBadgeText({text: ""});
-    $.get(watchlistUrl, function(data) {
-        handleWatchlistData(data);
-        if (typeof(callback) == 'function')
+    chrome.action.setBadgeText({text: ""});
+    
+    const { watchlistUrl } = await getWatchlistUrls();
+    
+    try {
+        const response = await fetch(watchlistUrl);
+        const data = await response.text();
+        await handleWatchlistData(data);
+        if (typeof(callback) == 'function') {
             callback(data);
-    });
+        }
+        return data;
+    } catch (error) {
+        console.error("Error fetching watchlist:", error);
+    }
 }
 
-// Looks at the localStorage['unread'] and updates the badge to reflect
-function updateBadge() {
-    var unread = localStorage['unread'].split(';').length;
-    if (unread > 0 && localStorage['unread'])
-        chrome.browserAction.setBadgeText({text: unread.toString()});
-    else
-        chrome.browserAction.setBadgeText({text: ""});
+// Looks at the stored unread items and updates the badge to reflect
+async function updateBadge() {
+    const settings = await getStorageData(['unread']);
+    const unreadItems = settings.unread ? settings.unread.split(';') : [];
+    const unreadCount = unreadItems.filter(item => item.length > 0).length;
+    
+    if (unreadCount > 0) {
+        chrome.action.setBadgeText({text: unreadCount.toString()});
+    } else {
+        chrome.action.setBadgeText({text: ""});
+    }
 }
 
-// Pushes new unread items to localStorage[unread], prune old items, updateBadge
-function handleWatchlistData(data) {
-    var unread = [];
-    if (localStorage['unread'])
-        unread = $(localStorage['unread'].split(';')).map(function(){
-            return parseInt(this);});
-    var rss = parseRSS(data);
+// Pushes new unread items to storage, prune old items, updateBadge
+async function handleWatchlistData(data) {
+    const settings = await getStorageData(['unread', 'last_date']);
+    let unread = [];
+    
+    if (settings.unread) {
+        unread = settings.unread.split(';').map(item => parseInt(item)).filter(item => !isNaN(item));
+    }
+    
+    const rss = parseRSS(data);
     // rss_ms: array of ms values from RSS which was just read
-    var rss_ms = rss.map(function(){
-        var msDate = Date.parse(this.pubDate);
+    const rss_ms = [];
+    
+    rss.forEach(item => {
+        const msDate = Date.parse(item.pubDate);
         // only push items with a newer timestamp than the last one read
-        if (msDate > localStorage["last_date"]) {
-            console.log("New unread item: " + this.title);
+        if (msDate > (parseInt(settings.last_date) || 0)) {
+            console.log("New unread item: " + item.title);
             unread.push(msDate);
         }
-        return msDate;
+        rss_ms.push(msDate);
     });
-    localStorage["last_date"] = rss_ms.get(0);
+    
+    const lastDate = rss_ms.length > 0 ? Math.max(...rss_ms).toString() : (settings.last_date || '0');
 
     // prunes old entries that are no longer listed
-    localStorage["unread"] = $(unread).filter(rss_ms).get().join(";");
+    const filteredUnread = unread.filter(item => rss_ms.includes(item));
+    
+    await setStorageData({
+        "last_date": lastDate,
+        "unread": filteredUnread.join(";")
+    });
     
     updateBadge();
 }
 
-/* RSS parser in 7 lines */
-function parseRSS(d) {
-    return $(d).find('item').map(function() {
-        var i = new Object();
-        $(this).children().each(function(){i[this.tagName]= this.textContent;});
-        return i;
-    });
+/* RSS parser for service worker (no DOM) */
+function parseRSS(data) {
+    const results = [];
+    // Simple regex-based parsing for RSS items
+    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/g;
+    let match;
+    
+    while ((match = itemRegex.exec(data)) !== null) {
+        const itemContent = match[1];
+        const rssItem = {};
+        
+        // Extract common RSS fields
+        const fields = ['title', 'link', 'description', 'pubDate', 'dc:creator'];
+        fields.forEach(field => {
+            const fieldRegex = new RegExp(`<${field}[^>]*>([\\s\\S]*?)<\\/${field}>`, 'i');
+            const fieldMatch = fieldRegex.exec(itemContent);
+            if (fieldMatch) {
+                rssItem[field] = fieldMatch[1].trim();
+            }
+        });
+        
+        if (rssItem.title) {
+            results.push(rssItem);
+        }
+    }
+    
+    return results;
 }
