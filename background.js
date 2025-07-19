@@ -48,16 +48,8 @@ chrome.alarms.onAlarm.addListener(onAlarm);
 // Handle messages from popup and options
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'unloadEvent') {
-        unloadEvent();
-    } else if (message.action === 'getStorageData') {
-        getStorageData(message.keys).then(sendResponse);
+        unloadEvent().then(() => sendResponse({success: true}));
         return true; // Keep message channel open for async response
-    } else if (message.action === 'setStorageData') {
-        setStorageData(message.data).then(sendResponse);
-        return true;
-    } else if (message.action === 'checkNewItems') {
-        checkNewItems(message.callback).then(sendResponse);
-        return true;
     }
 });
 

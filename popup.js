@@ -115,7 +115,7 @@ async function updateBadge() {
     }
 }
 
-// Simple RSS parser for popup
+// DOM-based RSS parser for popup
 function parseRSS(data) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(data, 'text/xml');

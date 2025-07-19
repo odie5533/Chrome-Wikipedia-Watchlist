@@ -97,7 +97,7 @@ async function handleWatchlistData(data) {
         rss_ms.push(msDate);
     });
     
-    const lastDate = rss_ms.length > 0 ? rss_ms[0].toString() : settings.last_date;
+    const lastDate = rss_ms.length > 0 ? Math.max(...rss_ms).toString() : (settings.last_date || '0');
 
     // prunes old entries that are no longer listed
     const filteredUnread = unread.filter(item => rss_ms.includes(item));
@@ -110,21 +110,31 @@ async function handleWatchlistData(data) {
     updateBadge();
 }
 
-/* RSS parser in 7 lines */
+/* RSS parser for service worker (no DOM) */
 function parseRSS(data) {
-    // Create a temporary DOM to parse the RSS
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(data, 'text/xml');
-    const items = doc.querySelectorAll('item');
-    
     const results = [];
-    items.forEach(item => {
+    // Simple regex-based parsing for RSS items
+    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/g;
+    let match;
+    
+    while ((match = itemRegex.exec(data)) !== null) {
+        const itemContent = match[1];
         const rssItem = {};
-        item.children.forEach(child => {
-            rssItem[child.tagName] = child.textContent;
+        
+        // Extract common RSS fields
+        const fields = ['title', 'link', 'description', 'pubDate', 'dc:creator'];
+        fields.forEach(field => {
+            const fieldRegex = new RegExp(`<${field}[^>]*>([\\s\\S]*?)<\\/${field}>`, 'i');
+            const fieldMatch = fieldRegex.exec(itemContent);
+            if (fieldMatch) {
+                rssItem[field] = fieldMatch[1].trim();
+            }
         });
-        results.push(rssItem);
-    });
+        
+        if (rssItem.title) {
+            results.push(rssItem);
+        }
+    }
     
     return results;
 }
